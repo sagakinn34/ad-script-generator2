@@ -1,0 +1,15 @@
+# 機密情報
+.env
+
+# データベース
+*.db
+*.sqlite
+
+# Python
+__pycache__/
+*.pyc
+.streamlit/
+
+# OS
+.DS_Store
+Thumbs.db
