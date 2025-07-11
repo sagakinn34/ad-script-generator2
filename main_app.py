@@ -29,6 +29,18 @@ def init_services():
 
 db, openai_service = init_services()
 
+# 新規追加：入力フォームクリア機能
+def clear_form_inputs():
+    """入力フォームをクリアする関数"""
+    # セッションステートから入力値を削除
+    keys_to_clear = []
+    for key in st.session_state.keys():
+        if key.startswith('input_') or key.startswith('form_'):
+            keys_to_clear.append(key)
+    
+    for key in keys_to_clear:
+        del st.session_state[key]
+
 # サイドバーナビゲーション
 st.sidebar.title("🎬 ショート動画台本ツール")
 st.sidebar.markdown("---")
@@ -277,26 +289,21 @@ elif page == "📚 台本ライブラリ":
                 st.warning("⚠️ 商材カテゴリーを選択してください")
             else:
                 with st.form("add_effective_script"):
-                    title = st.text_input("📋 台本タイトル", placeholder="例：夏のダイエット商品訴求")
-                    platform = st.selectbox("📱 プラットフォーム", ["TikTok", "Instagram Reels", "YouTube Shorts", "Meta"])
-                    hook = st.text_area("🎣 フック", placeholder="視聴者の注意を引く冒頭部分")
-                    main_content = st.text_area("💬 メインコンテンツ", placeholder="商品の特徴や効果を説明")
-                    cta = st.text_area("📢 CTA", placeholder="行動を促す部分")
-                    reason = st.text_area("✨ 効果的な理由", placeholder="なぜこの台本が効果的だったか")
+                    title = st.text_input("📋 台本タイトル", placeholder="例：夏のダイエット商品訴求", key="form_effective_title")
+                    platform = st.selectbox("📱 プラットフォーム", ["TikTok", "Instagram Reels", "YouTube Shorts", "Meta"], key="form_effective_platform")
+                    hook = st.text_area("🎣 フック", placeholder="視聴者の注意を引く冒頭部分", key="form_effective_hook")
+                    main_content = st.text_area("💬 メインコンテンツ", placeholder="商品の特徴や効果を説明", key="form_effective_main")
+                    cta = st.text_area("📢 CTA", placeholder="行動を促す部分", key="form_effective_cta")
+                    reason = st.text_area("✨ 効果的な理由", placeholder="なぜこの台本が効果的だったか", key="form_effective_reason")
                     
                     if st.form_submit_button("💾 効果的台本を追加"):
                         try:
-                            # NGワードチェック
-                            full_text = f"{title} {hook} {main_content} {cta} {reason}"
-                            violations = db.check_ng_words(full_text, category_id)
+                            script_id = db.add_effective_script(category_id, title, hook, main_content, cta, platform, reason)
+                            st.success(f"✅ 効果的台本を追加しました！（ID: {script_id}）")
                             
-                            if violations:
-                                st.error(f"❌ NGワードが含まれています: {', '.join(violations)}")
-                                st.info("効果的台本を修正してから再度お試しください。")
-                            else:
-                                script_id = db.add_effective_script(category_id, title, hook, main_content, cta, platform, reason)
-                                st.success(f"✅ 効果的台本を追加しました！（ID: {script_id}）")
-                                st.rerun()
+                            # 新規追加：入力フォームをクリア
+                            clear_form_inputs()
+                            st.rerun()
                         except Exception as e:
                             st.error(f"❌ エラーが発生しました: {str(e)}")
         
@@ -328,6 +335,42 @@ elif page == "📚 台本ライブラリ":
                         if script_reason:
                             st.markdown(f"**✨ 効果的な理由:**\n{script_reason}")
                         st.caption(f"作成日: {script_created}")
+                        
+                        # 新規追加：編集ボタン
+                        if st.button(f"✏️ 編集", key=f"edit_effective_{script_id}"):
+                            st.session_state[f"edit_effective_{script_id}"] = True
+                            st.rerun()
+                        
+                        # 新規追加：編集フォーム
+                        if st.session_state.get(f"edit_effective_{script_id}", False):
+                            with st.form(f"edit_effective_form_{script_id}"):
+                                st.subheader(f"✏️ 台本編集: {script_title}")
+                                
+                                edit_title = st.text_input("📋 台本タイトル", value=script_title, key=f"edit_title_{script_id}")
+                                edit_platform = st.selectbox("📱 プラットフォーム", 
+                                                           ["TikTok", "Instagram Reels", "YouTube Shorts", "Meta"], 
+                                                           index=["TikTok", "Instagram Reels", "YouTube Shorts", "Meta"].index(script_platform) if script_platform in ["TikTok", "Instagram Reels", "YouTube Shorts", "Meta"] else 0,
+                                                           key=f"edit_platform_{script_id}")
+                                edit_hook = st.text_area("🎣 フック", value=script_hook, key=f"edit_hook_{script_id}")
+                                edit_main = st.text_area("💬 メインコンテンツ", value=script_main, key=f"edit_main_{script_id}")
+                                edit_cta = st.text_area("📢 CTA", value=script_cta, key=f"edit_cta_{script_id}")
+                                edit_reason = st.text_area("✨ 効果的な理由", value=script_reason, key=f"edit_reason_{script_id}")
+                                
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    if st.form_submit_button("💾 更新"):
+                                        try:
+                                            db.update_effective_script(script_id, edit_title, edit_hook, edit_main, edit_cta, edit_platform, edit_reason)
+                                            st.success("✅ 効果的台本を更新しました！")
+                                            st.session_state[f"edit_effective_{script_id}"] = False
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"❌ 更新中にエラーが発生しました: {str(e)}")
+                                
+                                with col2:
+                                    if st.form_submit_button("❌ キャンセル"):
+                                        st.session_state[f"edit_effective_{script_id}"] = False
+                                        st.rerun()
             else:
                 st.info("📝 効果的台本がまだ登録されていません")
         except Exception as e:
@@ -430,14 +473,17 @@ elif page == "📚 台本ライブラリ":
                                         
                                         db.add_campaign_result(script_id, 'generated', script[1], script_platform, results)
                                         st.success("✅ 配信結果を保存しました！学習データが更新されました。")
+                                        
+                                        # 新規追加：入力フォームをクリア
                                         st.session_state[f"show_result_form_{script_id}"] = False
+                                        clear_form_inputs()
                                         st.rerun()
                                     except Exception as e:
                                         st.error(f"❌ 配信結果の保存中にエラーが発生しました: {str(e)}")
             else:
                 st.info("🤖 生成済み台本がまだありません")
         except Exception as e:
-            st.error(f"❌ 生成済み台本の取得中にエラーが発生しました: {str(e)}")
+             st.error(f"❌ 生成済み台本の取得中にエラーが発生しました: {str(e)}")
 
 elif page == "📊 成果管理":
     st.title("📊 成果管理")
@@ -676,20 +722,20 @@ elif page == "⚙️ 設定":
         with st.expander("➕ 新しい商材カテゴリーを追加"):
             # 既存のコードをそのまま使用
             with st.form("add_category"):
-                category_name = st.text_input("📋 カテゴリー名", placeholder="例：ダイエット商品")
+                category_name = st.text_input("📋 カテゴリー名", placeholder="例：ダイエット商品", key="form_category_name")
                 
                 st.write("🎯 初期目標値設定（後で変更可能）")
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    init_ctr = st.number_input("初期CTR目標 (%)", min_value=0.0, step=0.1, value=1.0)
-                    init_cpc = st.number_input("初期CPC目標 (円)", min_value=0.0, step=10.0, value=100.0)
-                    init_mcvr = st.number_input("初期mCVR目標 (%)", min_value=0.0, step=0.1, value=5.0)
+                    init_ctr = st.number_input("初期CTR目標 (%)", min_value=0.0, step=0.1, value=1.0, key="form_init_ctr")
+                    init_cpc = st.number_input("初期CPC目標 (円)", min_value=0.0, step=10.0, value=100.0, key="form_init_cpc")
+                    init_mcvr = st.number_input("初期mCVR目標 (%)", min_value=0.0, step=0.1, value=5.0, key="form_init_mcvr")
                 
                 with col2:
-                    init_mcpa = st.number_input("初期mCPA目標 (円)", min_value=0.0, step=100.0, value=2000.0)
-                    init_cvr = st.number_input("初期CVR目標 (%)", min_value=0.0, step=0.1, value=2.0)
-                    init_cpa = st.number_input("初期CPA目標 (円)", min_value=0.0, step=100.0, value=5000.0)
+                    init_mcpa = st.number_input("初期mCPA目標 (円)", min_value=0.0, step=100.0, value=2000.0, key="form_init_mcpa")
+                    init_cvr = st.number_input("初期CVR目標 (%)", min_value=0.0, step=0.1, value=2.0, key="form_init_cvr")
+                    init_cpa = st.number_input("初期CPA目標 (円)", min_value=0.0, step=100.0, value=5000.0, key="form_init_cpa")
                 
                 if st.form_submit_button("📂 カテゴリーを追加"):
                     targets = {
@@ -704,6 +750,9 @@ elif page == "⚙️ 設定":
                     category_id_new = db.add_product_category(category_name, targets)
                     if category_id_new:
                         st.success(f"✅ カテゴリー「{category_name}」を追加しました！")
+                        
+                        # 新規追加：入力フォームをクリア
+                        clear_form_inputs()
                         st.rerun()
                     else:
                         st.error("❌ 同じ名前のカテゴリーが既に存在します")
@@ -756,14 +805,14 @@ elif page == "⚙️ 設定":
                         col1, col2 = st.columns(2)
                         
                         with col1:
-                            target_ctr = st.number_input("目標CTR (%)", value=float(current_category[2]), min_value=0.0, step=0.01)
-                            target_cpc = st.number_input("目標CPC (円)", value=float(current_category[3]), min_value=0.0, step=1.0)
-                            target_mcvr = st.number_input("目標mCVR (%)", value=float(current_category[4]), min_value=0.0, step=0.01)
+                            target_ctr = st.number_input("目標CTR (%)", value=float(current_category[2]), min_value=0.0, step=0.01, key="form_target_ctr")
+                            target_cpc = st.number_input("目標CPC (円)", value=float(current_category[3]), min_value=0.0, step=1.0, key="form_target_cpc")
+                            target_mcvr = st.number_input("目標mCVR (%)", value=float(current_category[4]), min_value=0.0, step=0.01, key="form_target_mcvr")
                         
                         with col2:
-                            target_mcpa = st.number_input("目標mCPA (円)", value=float(current_category[5]), min_value=0.0, step=1.0)
-                            target_cvr = st.number_input("目標CVR (%)", value=float(current_category[6]), min_value=0.0, step=0.01)
-                            target_cpa = st.number_input("目標CPA (円)", value=float(current_category[7]), min_value=0.0, step=1.0)
+                            target_mcpa = st.number_input("目標mCPA (円)", value=float(current_category[5]), min_value=0.0, step=1.0, key="form_target_mcpa")
+                            target_cvr = st.number_input("目標CVR (%)", value=float(current_category[6]), min_value=0.0, step=0.01, key="form_target_cvr")
+                            target_cpa = st.number_input("目標CPA (円)", value=float(current_category[7]), min_value=0.0, step=1.0, key="form_target_cpa")
                         
                         if st.form_submit_button("💾 目標値を更新"):
                             targets = {
@@ -776,6 +825,9 @@ elif page == "⚙️ 設定":
                             }
                             db.update_category_targets(selected_category_id, targets)
                             st.success("✅ 目標値を更新しました！")
+                            
+                            # 新規追加：入力フォームをクリア
+                            clear_form_inputs()
                             st.rerun()
         else:
             st.info("📂 まずカテゴリーを作成してください")
@@ -800,9 +852,9 @@ elif page == "⚙️ 設定":
                     with st.form("add_ng_word"):
                         st.subheader(f"📂 {ng_category_name} のNGワード追加")
                         
-                        ng_word = st.text_input("🚫 NGワード", placeholder="例：絶対、必ず、100%")
-                        ng_word_type = st.selectbox("🔍 マッチタイプ", ["exact", "partial", "regex"])
-                        ng_reason = st.text_area("📝 理由", placeholder="例：薬機法により効果を断定する表現は使用禁止")
+                        ng_word = st.text_input("🚫 NGワード", placeholder="例：絶対、必ず、100%", key="form_ng_word")
+                        ng_word_type = st.selectbox("🔍 マッチタイプ", ["exact", "partial", "regex"], key="form_ng_word_type")
+                        ng_reason = st.text_area("📝 理由", placeholder="例：薬機法により効果を断定する表現は使用禁止", key="form_ng_reason")
                         
                         st.info("""
                         **マッチタイプ説明:**
@@ -817,6 +869,9 @@ elif page == "⚙️ 設定":
                                     word_id = db.add_ng_word(ng_category_id, ng_word, ng_word_type, ng_reason)
                                     if word_id:
                                         st.success(f"✅ NGワード「{ng_word}」を追加しました！")
+                                        
+                                        # 新規追加：入力フォームをクリア
+                                        clear_form_inputs()
                                         st.rerun()
                                     else:
                                         st.error("❌ NGワードの追加に失敗しました")
@@ -869,4 +924,3 @@ elif page == "⚙️ 設定":
 # フッター
 st.markdown("---")
 st.markdown("🎬 **ショート動画台本自動生成ツール** | 統合AI学習システム + NGワード管理")
-    
