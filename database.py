@@ -147,9 +147,97 @@ class DatabaseManager:
             )
         ''')
         
+        # 9. プラットフォーム管理テーブル（新規追加）
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS platforms (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                platform_name TEXT UNIQUE NOT NULL,
+                platform_code TEXT UNIQUE NOT NULL,
+                description TEXT,
+                is_active BOOLEAN DEFAULT TRUE,
+                sort_order INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # 初期プラットフォームデータの挿入
+        cursor.execute('''
+            INSERT OR IGNORE INTO platforms (platform_name, platform_code, description, sort_order)
+            VALUES 
+            ('TikTok', 'tiktok', 'TikTok向けショート動画', 1),
+            ('Instagram Reels', 'instagram', 'Instagram Reels向けショート動画', 2),
+            ('YouTube Shorts', 'youtube', 'YouTube Shorts向けショート動画', 3),
+            ('Meta', 'meta', 'Meta（Facebook）向け動画', 4)
+        ''')
+        
         conn.commit()
         conn.close()
         print("✅ データベースが正常に初期化されました")
+    
+    # プラットフォーム管理メソッド（新規追加）
+    def get_active_platforms(self):
+        """アクティブなプラットフォーム一覧を取得"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT platform_name, platform_code, description 
+            FROM platforms 
+            WHERE is_active = TRUE 
+            ORDER BY sort_order, platform_name
+        ''')
+        platforms = cursor.fetchall()
+        conn.close()
+        return platforms
+    
+    def get_all_platforms(self):
+        """全てのプラットフォーム一覧を取得"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT * FROM platforms 
+            ORDER BY sort_order, platform_name
+        ''')
+        platforms = cursor.fetchall()
+        conn.close()
+        return platforms
+    
+    def add_platform(self, platform_name, platform_code, description=None):
+        """新しいプラットフォームを追加"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                INSERT INTO platforms (platform_name, platform_code, description)
+                VALUES (?, ?, ?)
+            ''', (platform_name, platform_code, description))
+            conn.commit()
+            return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            return None
+        finally:
+            conn.close()
+    
+    def update_platform(self, platform_id, platform_name, platform_code, description=None, is_active=True):
+        """プラットフォームを更新"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE platforms SET
+            platform_name = ?, platform_code = ?, description = ?, is_active = ?,
+            updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (platform_name, platform_code, description, is_active, platform_id))
+        conn.commit()
+        conn.close()
+    
+    def delete_platform(self, platform_id):
+        """プラットフォームを削除（論理削除）"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE platforms SET is_active = FALSE WHERE id = ?', (platform_id,))
+        conn.commit()
+        conn.close()
     
     # 商材カテゴリー管理
     def add_product_category(self, category_name, targets=None):
@@ -672,7 +760,7 @@ class DatabaseManager:
         conn.close()
         return words
     
-    def delete_ng_word(self, word_id):
+def delete_ng_word(self, word_id):
         """NGワードを削除"""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -710,6 +798,30 @@ if __name__ == "__main__":
     
     # 基本機能テスト
     print("✅ データベースが初期化されました")
+    
+    # プラットフォーム管理テスト
+    print("\n=== プラットフォーム管理テスト ===")
+    
+    # アクティブなプラットフォーム取得
+    active_platforms = db.get_active_platforms()
+    print(f"✅ アクティブなプラットフォーム: {len(active_platforms)}件")
+    for platform in active_platforms:
+        print(f"  - {platform[0]} ({platform[1]})")
+    
+    # 新しいプラットフォーム追加テスト
+    test_platform_id = db.add_platform("LINE VOOM", "line_voom", "LINE VOOM向けショート動画")
+    if test_platform_id:
+        print(f"✅ テスト用プラットフォーム追加成功: ID {test_platform_id}")
+        
+        # プラットフォーム更新テスト
+        db.update_platform(test_platform_id, "LINE VOOM", "line_voom", "LINE VOOM向けショート動画（更新）", True)
+        print("✅ プラットフォーム更新成功")
+        
+        # プラットフォーム削除テスト
+        db.delete_platform(test_platform_id)
+        print("✅ プラットフォーム削除成功")
+    else:
+        print("❌ テスト用プラットフォーム追加失敗")
     
     # 空白値処理テスト
     print("\n=== 空白値処理テスト ===")
@@ -749,7 +861,8 @@ if __name__ == "__main__":
     score2 = db._calculate_performance_score(test_results2, test_targets)
     print(f"  評価結果: {evaluation2} ({'良い' if evaluation2 else '悪い'})")
     print(f"  スコア: {score2:.2f}")
-      # テスト3: 全て空白
+    
+    # テスト3: 全て空白
     test_results3 = {
         'ctr': '',
         'cpc': None,
@@ -780,7 +893,7 @@ if __name__ == "__main__":
     for pattern_type, count, avg_score in stats:
         print(f"- {pattern_type}: {count}件, 平均スコア: {avg_score:.2f}")
     
-     # NGワード機能テスト
+    # NGワード機能テスト
     print("\n=== NGワード機能テスト ===")
     
     # テスト用カテゴリー作成
@@ -814,3 +927,4 @@ if __name__ == "__main__":
         print("❌ テスト用カテゴリー作成失敗")
     
     print("\n✅ 統合版DatabaseManagerのテストが完了しました！")
+        
