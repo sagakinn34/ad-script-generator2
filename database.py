@@ -248,6 +248,42 @@ class DatabaseManager:
         conn.close()
         return scripts
     
+    # 新規追加：効果的台本の取得（単一）
+    def get_effective_script_by_id(self, script_id):
+        """効果的台本を単一取得"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT es.*, pc.category_name 
+            FROM effective_scripts es
+            JOIN product_categories pc ON es.category_id = pc.id
+            WHERE es.id = ?
+        ''', (script_id,))
+        
+        script = cursor.fetchone()
+        conn.close()
+        return script
+    
+    # 新規追加：効果的台本の更新
+    def update_effective_script(self, script_id, title, hook, main_content, cta, platform, reason):
+        """効果的台本を更新"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        script_content = f"【フック】\n{hook}\n\n【メイン】\n{main_content}\n\n【CTA】\n{cta}"
+        
+        cursor.execute('''
+            UPDATE effective_scripts SET
+            title = ?, hook = ?, main_content = ?, call_to_action = ?, 
+            script_content = ?, platform = ?, effectiveness_reason = ?,
+            updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (title, hook, main_content, cta, script_content, platform, reason, script_id))
+        
+        conn.commit()
+        conn.close()
+    
     # 配信結果管理
     def add_campaign_result(self, script_id, script_type, category_id, platform, results):
         """配信結果を追加"""
@@ -713,8 +749,7 @@ if __name__ == "__main__":
     score2 = db._calculate_performance_score(test_results2, test_targets)
     print(f"  評価結果: {evaluation2} ({'良い' if evaluation2 else '悪い'})")
     print(f"  スコア: {score2:.2f}")
-    
-    # テスト3: 全て空白
+      # テスト3: 全て空白
     test_results3 = {
         'ctr': '',
         'cpc': None,
