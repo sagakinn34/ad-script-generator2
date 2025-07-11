@@ -157,10 +157,10 @@ class OpenAIIntegration:
             reference_details = "\n\n【効果的台本（専門家選定）- 重み40%】\n"
             for i, script in enumerate(reference_scripts[:2], 1):
                  script_title = script[2] if len(script) > 2 else "タイトル不明"
-                script_hook = script[3] if len(script) > 3 else ""
-                script_main = script[4] if len(script) > 4 else ""
-                script_cta = script[5] if len(script) > 5 else ""
-                script_reason = script[8] if len(script) > 8 else ""
+                 script_hook = script[3] if len(script) > 3 else ""
+                 script_main = script[4] if len(script) > 4 else ""
+                 script_cta = script[5] if len(script) > 5 else ""
+                 script_reason = script[8] if len(script) > 8 else ""
                 
                 reference_details += f"""
 効果的台本{i}: {script_title}
