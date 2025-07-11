@@ -156,7 +156,7 @@ class OpenAIIntegration:
         if reference_scripts:
             reference_details = "\n\n【効果的台本（専門家選定）- 重み40%】\n"
             for i, script in enumerate(reference_scripts[:2], 1):
-                script_title = script[2] if len(script) > 2 else "タイトル不明"
+                 script_title = script[2] if len(script) > 2 else "タイトル不明"
                 script_hook = script[3] if len(script) > 3 else ""
                 script_main = script[4] if len(script) > 4 else ""
                 script_cta = script[5] if len(script) > 5 else ""
@@ -268,6 +268,7 @@ CTA: {script_cta}
     def generate_script(self, category, target_audience, platform, script_length, reference_scripts=None, category_id=None):
         """
         統合版台本生成（効果的台本 + 強化学習、トーン削除、NGワードチェック）
+        要件1対応：自動生成台本のみNGワードチェック適用
         """
         if not self.client:
             raise Exception("OpenAI APIクライアントが初期化されていません")
@@ -279,7 +280,7 @@ CTA: {script_cta}
                 script_length, reference_scripts, category_id
             )
             
-            # NGワード指示を追加
+            # 要件1対応：自動生成台本にのみNGワード指示を追加
             ng_words_instruction = ""
             if category_id:
                 conn = sqlite3.connect(self.db_path)
@@ -353,7 +354,7 @@ CTA: {script_cta}
 
 📢 CTA: {script_data['call_to_action']}"""
             
-            # NGワードチェック・クリーン
+            # 要件1対応：自動生成台本のみNGワードチェック・クリーン
             if category_id:
                 cleaned_script, violations = self.check_and_clean_script(script_data, category_id)
                 if violations:
