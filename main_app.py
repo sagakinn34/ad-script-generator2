@@ -29,6 +29,13 @@ def init_services():
 
 db, openai_service = init_services()
 
+# プラットフォーム選択肢を取得する関数（新規追加）
+@st.cache_data
+def get_platform_options():
+    """プラットフォーム選択肢を取得"""
+    platforms = db.get_active_platforms()
+    return [platform[0] for platform in platforms]  # platform_name のリスト
+
 # 新規追加：入力フォームクリア機能
 def clear_form_inputs():
     """入力フォームをクリアする関数"""
@@ -178,7 +185,7 @@ elif page == "✨ 台本生成":
     if 'saved_scripts' not in st.session_state:
         st.session_state.saved_scripts = set()
     
-    # 台本生成フォーム（トーン選択を削除）
+    # 台本生成フォーム（プラットフォーム選択を動的に変更）
     with st.form("script_generation_form"):
         st.subheader(f"📂 {category_name} の台本生成")
         
@@ -186,7 +193,8 @@ elif page == "✨ 台本生成":
         
         with col1:
             target_audience = st.text_input("🎯 ターゲット層", placeholder="例：20-30代女性")
-            platform = st.selectbox("📱 プラットフォーム", ["TikTok", "Instagram Reels", "YouTube Shorts", "Meta"])
+            platform_options = get_platform_options()
+            platform = st.selectbox("📱 プラットフォーム", platform_options)
             script_length = st.selectbox("⏱️ 台本の長さ", ["15秒", "30秒", "60秒"])
         
         with col2:
@@ -290,7 +298,8 @@ elif page == "📚 台本ライブラリ":
             else:
                 with st.form("add_effective_script"):
                     title = st.text_input("📋 台本タイトル", placeholder="例：夏のダイエット商品訴求", key="form_effective_title")
-                    platform = st.selectbox("📱 プラットフォーム", ["TikTok", "Instagram Reels", "YouTube Shorts", "Meta"], key="form_effective_platform")
+                    platform_options = get_platform_options()
+                    platform = st.selectbox("📱 プラットフォーム", platform_options, key="form_effective_platform")
                     hook = st.text_area("🎣 フック", placeholder="視聴者の注意を引く冒頭部分", key="form_effective_hook")
                     main_content = st.text_area("💬 メインコンテンツ", placeholder="商品の特徴や効果を説明", key="form_effective_main")
                     cta = st.text_area("📢 CTA", placeholder="行動を促す部分", key="form_effective_cta")
@@ -323,7 +332,7 @@ elif page == "📚 台本ライブラリ":
                     script_platform = script[7] if len(script) > 7 else "プラットフォーム不明"
                     script_reason = script[8] if len(script) > 8 else ""
                     script_created = script[9] if len(script) > 9 else "作成日不明"
-                    script_category = script[15] if len(script) > 15 else "カテゴリー不明"
+                    script_category = script[11] if len(script) > 11 else "カテゴリー不明"
                     
                     with st.expander(f"📝 {script_title} ({script_platform} - {script_category})"):
                         if script_hook:
@@ -347,10 +356,11 @@ elif page == "📚 台本ライブラリ":
                                 st.subheader(f"✏️ 台本編集: {script_title}")
                                 
                                 edit_title = st.text_input("📋 台本タイトル", value=script_title, key=f"edit_title_{script_id}")
-                                edit_platform = st.selectbox("📱 プラットフォーム", 
-                                                           ["TikTok", "Instagram Reels", "YouTube Shorts", "Meta"], 
-                                                           index=["TikTok", "Instagram Reels", "YouTube Shorts", "Meta"].index(script_platform) if script_platform in ["TikTok", "Instagram Reels", "YouTube Shorts", "Meta"] else 0,
-                                                           key=f"edit_platform_{script_id}")
+                                platform_options = get_platform_options()
+                                platform_index = 0
+                                if script_platform in platform_options:
+                                    platform_index = platform_options.index(script_platform)
+                                edit_platform = st.selectbox("📱 プラットフォーム", platform_options, index=platform_index, key=f"edit_platform_{script_id}")
                                 edit_hook = st.text_area("🎣 フック", value=script_hook, key=f"edit_hook_{script_id}")
                                 edit_main = st.text_area("💬 メインコンテンツ", value=script_main, key=f"edit_main_{script_id}")
                                 edit_cta = st.text_area("📢 CTA", value=script_cta, key=f"edit_cta_{script_id}")
@@ -484,6 +494,7 @@ elif page == "📚 台本ライブラリ":
                 st.info("🤖 生成済み台本がまだありません")
         except Exception as e:
             st.error(f"❌ 生成済み台本の取得中にエラーが発生しました: {str(e)}")
+
 elif page == "📊 成果管理":
     st.title("📊 成果管理")
     st.markdown("---")
@@ -505,8 +516,9 @@ elif page == "📊 成果管理":
             filter_category_id = int(selected_category_filter.split(":")[0])
     
     with col2:
-        # プラットフォームフィルター
-        platform_filter = st.selectbox("📱 プラットフォーム", ["全て", "TikTok", "Instagram Reels", "YouTube Shorts", "Meta"])
+        # プラットフォームフィルター（動的に変更）
+        platform_filter_options = ["全て"] + get_platform_options()
+        platform_filter = st.selectbox("📱 プラットフォーム", platform_filter_options)
         if platform_filter == "全て":
             platform_filter = None
     
@@ -627,7 +639,7 @@ elif page == "📈 レポート":
     cursor.execute('SELECT COUNT(*) FROM effective_scripts WHERE category_id = ?', (category_id,))
     effective_count = cursor.fetchone()[0]
 
-     # 生成済み台本数
+    # 生成済み台本数
     cursor.execute('SELECT COUNT(*) FROM generated_scripts WHERE category_id = ?', (category_id,))
     generated_count = cursor.fetchone()[0]
     
@@ -710,8 +722,8 @@ elif page == "⚙️ 設定":
     st.title("⚙️ 設定")
     st.markdown("---")
     
-    # タブで機能を分離
-    tab1, tab2, tab3 = st.tabs(["📂 カテゴリー管理", "🎯 目標値設定", "🚫 NGワード管理"])
+    # タブで機能を分離（プラットフォーム管理タブを追加）
+    tab1, tab2, tab3, tab4 = st.tabs(["📂 カテゴリー管理", "🎯 目標値設定", "🚫 NGワード管理", "📱 プラットフォーム管理"])
     
     with tab1:
         # 既存のカテゴリー管理機能（そのまま）
@@ -919,7 +931,138 @@ elif page == "⚙️ 設定":
                                 st.success("✅ NGワードは検出されませんでした")
                         else:
                             st.warning("⚠️ テストテキストを入力してください")
+    
+    with tab4:
+        # 新規追加：プラットフォーム管理機能
+        st.subheader("📱 プラットフォーム管理")
+        
+        # 新しいプラットフォーム追加
+        with st.expander("➕ 新しいプラットフォームを追加"):
+            with st.form("add_platform"):
+                platform_name = st.text_input("📱 プラットフォーム名", placeholder="例：LINE VOOM", key="form_platform_name")
+                platform_code = st.text_input("🔑 プラットフォームコード", placeholder="例：line_voom", key="form_platform_code")
+                description = st.text_area("📝 説明", placeholder="プラットフォームの特徴や用途", key="form_platform_description")
+                
+                if st.form_submit_button("📱 プラットフォームを追加"):
+                    if platform_name and platform_code:
+                        try:
+                            platform_id = db.add_platform(platform_name, platform_code, description)
+                            if platform_id:
+                                st.success(f"✅ プラットフォーム「{platform_name}」を追加しました！")
+                                
+                                # 新規追加：入力フォームをクリア
+                                clear_form_inputs()
+                                st.rerun()
+                            else:
+                                st.error("❌ 同じ名前またはコードのプラットフォームが既に存在します")
+                        except Exception as e:
+                            st.error(f"❌ エラーが発生しました: {str(e)}")
+                    else:
+                        st.error("❌ プラットフォーム名とコードを入力してください")
+        
+        # 既存プラットフォーム管理
+        st.subheader("📋 既存プラットフォーム管理")
+
+        all_platforms = db.get_all_platforms()
+        
+        if all_platforms:
+            for platform in all_platforms:
+                platform_id = platform[0]
+                platform_name = platform[1]
+                platform_code = platform[2]
+                description = platform[3]
+                is_active = platform[4]
+                
+                status = "✅ アクティブ" if is_active else "❌ 非アクティブ"
+                
+                with st.expander(f"📱 {platform_name} ({status})"):
+                    st.write(f"**コード:** {platform_code}")
+                    if description:
+                        st.write(f"**説明:** {description}")
+                    
+                    # 編集フォーム
+                    with st.form(f"edit_platform_{platform_id}"):
+                        edit_name = st.text_input("プラットフォーム名", value=platform_name, key=f"edit_name_{platform_id}")
+                        edit_code = st.text_input("プラットフォームコード", value=platform_code, key=f"edit_code_{platform_id}")
+                        edit_description = st.text_area("説明", value=description or "", key=f"edit_description_{platform_id}")
+                        edit_active = st.checkbox("アクティブ", value=is_active, key=f"edit_active_{platform_id}")
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.form_submit_button("💾 更新"):
+                                try:
+                                    db.update_platform(platform_id, edit_name, edit_code, edit_description, edit_active)
+                                    st.success("✅ プラットフォームを更新しました！")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"❌ 更新中にエラーが発生しました: {str(e)}")
+                        
+                        with col2:
+                            if st.form_submit_button("🗑️ 削除"):
+                                try:
+                                    db.delete_platform(platform_id)
+                                    st.success("✅ プラットフォームを削除しました！")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"❌ 削除中にエラーが発生しました: {str(e)}")
+        else:
+            st.info("📱 プラットフォームがまだ登録されていません")
+        
+        # プラットフォーム使用状況
+        st.subheader("📊 プラットフォーム使用状況")
+        
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        # 効果的台本でのプラットフォーム使用状況
+        cursor.execute('''
+            SELECT platform, COUNT(*) as count 
+            FROM effective_scripts 
+            GROUP BY platform 
+            ORDER BY count DESC
+        ''')
+        effective_platform_stats = cursor.fetchall()
+        
+        # 生成済み台本でのプラットフォーム使用状況
+        cursor.execute('''
+            SELECT platform, COUNT(*) as count 
+            FROM generated_scripts 
+            GROUP BY platform 
+            ORDER BY count DESC
+        ''')
+        generated_platform_stats = cursor.fetchall()
+        
+        # 配信結果でのプラットフォーム使用状況
+        cursor.execute('''
+            SELECT platform, COUNT(*) as count 
+            FROM campaign_results 
+            GROUP BY platform 
+            ORDER BY count DESC
+        ''')
+        campaign_platform_stats = cursor.fetchall()
+        
+        conn.close()
+        
+        if effective_platform_stats or generated_platform_stats or campaign_platform_stats:
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.write("**効果的台本**")
+                for platform, count in effective_platform_stats:
+                    st.write(f"- {platform}: {count}件")
+            
+            with col2:
+                st.write("**生成済み台本**")
+                for platform, count in generated_platform_stats:
+                    st.write(f"- {platform}: {count}件")
+            
+            with col3:
+                st.write("**配信結果**")
+                for platform, count in campaign_platform_stats:
+                    st.write(f"- {platform}: {count}件")
+        else:
+            st.info("📊 プラットフォーム使用データがまだありません")
 
 # フッター
 st.markdown("---")
-st.markdown("🎬 **ショート動画台本自動生成ツール** | 統合AI学習システム + NGワード管理")
+st.markdown("🎬 **ショート動画台本自動生成ツール** | 統合AI学習システム + NGワード管理 + プラットフォーム管理")
