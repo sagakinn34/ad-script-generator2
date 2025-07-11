@@ -759,8 +759,8 @@ class DatabaseManager:
         words = cursor.fetchall()
         conn.close()
         return words
-    
-def delete_ng_word(self, word_id):
+
+    def delete_ng_word(self, word_id):
         """NGワードを削除"""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -927,4 +927,3 @@ if __name__ == "__main__":
         print("❌ テスト用カテゴリー作成失敗")
     
     print("\n✅ 統合版DatabaseManagerのテストが完了しました！")
-        
